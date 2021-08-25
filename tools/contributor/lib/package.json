@@ -33,7 +33,7 @@
     "path": "0.12.7",
     "readdirp-walk": "1.7.0",
     "travis-ci": "2.2.0",
-    "util": "0.11.1"
+    "util": "0.12.4"
   },
   "devDependencies": {}
 }
