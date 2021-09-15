@@ -50,10 +50,10 @@
     "mongoose": "5.11.7"
   },
   "devDependencies": {
-    "expect": "23.6.0",
-    "jest": "22.4.4",
-    "nodemon": "1.19.4",
+    "expect": "25.0.0",
+    "jest": "25.0.0",
+    "nodemon": "2.0.3",
     "smee-client": "1.2.2",
-    "standard": "10.0.3"
+    "standard": "14.3.2"
   }
 }
