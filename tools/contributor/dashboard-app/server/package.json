@@ -52,7 +52,7 @@
   "devDependencies": {
     "expect": "23.6.0",
     "jest": "22.4.4",
-    "nodemon": "1.19.4",
+    "nodemon": "2.0.3",
     "smee-client": "1.2.2",
     "standard": "10.0.3"
   }
