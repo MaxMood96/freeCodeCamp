@@ -85,6 +85,6 @@
     "babel-plugin-transform-imports": "1.5.1",
     "loopback-component-explorer": "6.4.0",
     "nodemon": "2.0.14",
-    "smee-client": "1.2.2"
+    "smee-client": "1.2.3"
   }
 }
