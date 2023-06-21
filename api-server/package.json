@@ -49,11 +49,11 @@
     "express-validator": "6.14.0",
     "helmet": "3.23.3",
     "helmet-csp": "2.10.0",
-    "jsonwebtoken": "8.5.1",
+    "jsonwebtoken": "9.0.0",
     "lodash": "4.17.21",
     "loopback": "3.28.0",
     "loopback-boot": "2.28.0",
-    "loopback-connector-mongodb": "4.2.0",
+    "loopback-connector-mongodb": "5.2.4",
     "method-override": "3.0.0",
     "moment": "2.29.1",
     "moment-timezone": "0.5.33",
@@ -84,7 +84,7 @@
     "babel-plugin-transform-function-bind": "6.22.0",
     "babel-plugin-transform-imports": "1.5.1",
     "loopback-component-explorer": "6.4.0",
-    "nodemon": "2.0.14",
+    "nodemon": "2.0.17",
     "smee-client": "1.2.2"
   }
 }
