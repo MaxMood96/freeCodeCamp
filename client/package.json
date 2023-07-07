@@ -36,7 +36,7 @@
     "@babel/plugin-proposal-export-default-from": "7.16.7",
     "@babel/plugin-proposal-function-bind": "7.16.7",
     "@babel/polyfill": "7.12.1",
-    "@babel/preset-env": "7.16.11",
+    "@babel/preset-env": "7.22.6",
     "@babel/preset-react": "7.16.7",
     "@babel/standalone": "7.17.8",
     "@fortawesome/fontawesome-svg-core": "6.1.1",
