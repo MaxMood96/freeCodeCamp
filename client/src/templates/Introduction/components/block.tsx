@@ -1,33 +1,37 @@
 import React, { Component } from 'react';
-import { withTranslation, TFunction } from 'react-i18next';
-import { ProgressBar } from '@freecodecamp/react-bootstrap';
+import type { DefaultTFuncReturn, TFunction } from 'i18next';
+import { withTranslation } from 'react-i18next';
 import { connect } from 'react-redux';
 import ScrollableAnchor from 'react-scrollable-anchor';
 import { bindActionCreators, Dispatch } from 'redux';
 import { createSelector } from 'reselect';
-import { SuperBlocks } from '../../../../../config/certification-settings';
-import envData from '../../../../../config/env.json';
-import { isAuditedCert } from '../../../../../utils/is-audited';
+
+import { SuperBlocks } from '../../../../../shared/config/curriculum';
+import envData from '../../../../config/env.json';
+import { isAuditedSuperBlock } from '../../../../../shared/utils/is-audited';
 import Caret from '../../../assets/icons/caret';
 import DropDown from '../../../assets/icons/dropdown';
 import GreenNotCompleted from '../../../assets/icons/green-not-completed';
 import GreenPass from '../../../assets/icons/green-pass';
+import { ProgressBar } from '../../../components/Progress/progress-bar';
 import { Link, Spacer } from '../../../components/helpers';
-import { completedChallengesSelector, executeGA } from '../../../redux';
+import { completedChallengesSelector } from '../../../redux/selectors';
 import { ChallengeNode, CompletedChallenge } from '../../../redux/prop-types';
 import { playTone } from '../../../utils/tone';
 import { makeExpandedBlockSelector, toggleBlock } from '../redux';
-import { isNewRespCert } from '../../../utils/is-a-cert';
+import { isGridBased, isProjectBased } from '../../../utils/curriculum-layout';
+import { BlockLayouts, BlockTypes } from '../../../../../shared/config/blocks';
 import Challenges from './challenges';
+import BlockLabel from './block-label';
+
 import '../intro.css';
 
-const { curriculumLocale } = envData;
+const { curriculumLocale, showUpcomingChanges, showNewCurriculum } = envData;
 
-const mapStateToProps = (
-  state: unknown,
-  ownProps: { blockDashedName: string } & unknown
-) => {
-  const expandedSelector = makeExpandedBlockSelector(ownProps.blockDashedName);
+type Challenge = ChallengeNode['challenge'];
+
+const mapStateToProps = (state: unknown, ownProps: { block: string }) => {
+  const expandedSelector = makeExpandedBlockSelector(ownProps.block);
 
   return createSelector(
     expandedSelector,
@@ -40,22 +44,38 @@ const mapStateToProps = (
 };
 
 const mapDispatchToProps = (dispatch: Dispatch) =>
-  bindActionCreators({ toggleBlock, executeGA }, dispatch);
+  bindActionCreators({ toggleBlock }, dispatch);
 
 interface BlockProps {
-  blockDashedName: string;
-  challenges: ChallengeNode[];
+  block: string;
+  blockType: BlockTypes | null;
+  challenges: Challenge[];
   completedChallengeIds: string[];
-  executeGA: typeof executeGA;
   isExpanded: boolean;
   superBlock: SuperBlocks;
   t: TFunction;
   toggleBlock: typeof toggleBlock;
 }
 
-const mapIconStyle = { height: '15px', marginRight: '10px', width: '15px' };
+export const BlockIntros = ({ intros }: { intros: string[] }): JSX.Element => {
+  return (
+    <div className='block-description'>
+      {intros.map((title, i) => (
+        <p dangerouslySetInnerHTML={{ __html: title }} key={i} />
+      ))}
+    </div>
+  );
+};
 
-export class Block extends Component<BlockProps> {
+function CheckMark({ isCompleted }: { isCompleted: boolean }): JSX.Element {
+  return isCompleted ? (
+    <GreenPass hushScreenReaderText />
+  ) : (
+    <GreenNotCompleted hushScreenReaderText />
+  );
+}
+
+class Block extends Component<BlockProps> {
   static displayName: string;
   constructor(props: BlockProps) {
     super(props);
@@ -64,39 +84,15 @@ export class Block extends Component<BlockProps> {
   }
 
   handleBlockClick(): void {
-    const { blockDashedName, toggleBlock, executeGA } = this.props;
+    const { block, toggleBlock } = this.props;
     void playTone('block-toggle');
-    executeGA({
-      type: 'event',
-      data: {
-        category: 'Map Block Click',
-        action: blockDashedName
-      }
-    });
-    toggleBlock(blockDashedName);
-  }
-
-  renderCheckMark(isCompleted: boolean): JSX.Element {
-    return isCompleted ? (
-      <GreenPass style={mapIconStyle} />
-    ) : (
-      <GreenNotCompleted style={mapIconStyle} />
-    );
-  }
-
-  renderBlockIntros(arr: string[]): JSX.Element {
-    return (
-      <div className='block-description'>
-        {arr.map((str, i) => (
-          <p dangerouslySetInnerHTML={{ __html: str }} key={i} />
-        ))}
-      </div>
-    );
+    toggleBlock(block);
   }
 
   render(): JSX.Element {
     const {
-      blockDashedName,
+      block,
+      blockType,
       completedChallengeIds,
       challenges,
       isExpanded,
@@ -104,10 +100,9 @@ export class Block extends Component<BlockProps> {
       t
     } = this.props;
 
-    const isNewResponsiveWebDesign = isNewRespCert(superBlock);
-
     let completedCount = 0;
-    const challengesWithCompleted = challenges.map(({ challenge }) => {
+
+    const challengesWithCompleted = challenges.map(challenge => {
       const { id } = challenge;
       const isCompleted = completedChallengeIds.some(
         (completedChallengeId: string) => completedChallengeId === id
@@ -118,59 +113,58 @@ export class Block extends Component<BlockProps> {
       return { ...challenge, isCompleted };
     });
 
-    const isProjectBlock = challenges.some(({ challenge }) => {
-      const isJsProject =
-        challenge.order === 10 && challenge.challengeType === 5;
-
-      const isOtherProject =
-        challenge.challengeType === 3 ||
-        challenge.challengeType === 4 ||
-        challenge.challengeType === 10 ||
-        challenge.challengeType === 12 ||
-        challenge.challengeType === 13;
-
-      const isTakeHomeProject = blockDashedName === 'take-home-projects';
-
-      return (
-        (isJsProject && !isTakeHomeProject) ||
-        (isOtherProject && !isTakeHomeProject)
-      );
+    const isProjectBlock = challenges.some(challenge => {
+      return isProjectBased(challenge.challengeType, block);
     });
 
-    const blockIntroObj: { title?: string; intro: string[] } = t(
-      `intro:${superBlock}.blocks.${blockDashedName}`
+    const isGridBlock = challenges.some(challenge => {
+      return isGridBased(superBlock, challenge.challengeType);
+    });
+
+    const isAudited = isAuditedSuperBlock(curriculumLocale, superBlock, {
+      showNewCurriculum,
+      showUpcomingChanges
+    });
+
+    const blockTitle = t(`intro:${superBlock}.blocks.${block}.title`);
+    // the real type of TFunction is the type below, because intro can be an array of strings
+    // type RealTypeOFTFunction = TFunction & ((key: string) => string[]);
+    // But changing the type will require refactoring that isn't worth it for a wrong type.
+    const blockIntroArr = t<string, DefaultTFuncReturn & string[]>(
+      `intro:${superBlock}.blocks.${block}.intro`
     );
-    const blockTitle = blockIntroObj ? blockIntroObj.title : null;
-    const blockIntroArr = blockIntroObj ? blockIntroObj.intro : [];
-    const {
-      expand: expandText,
-      collapse: collapseText
-    }: {
-      expand: string;
-      collapse: string;
-    } = t('intro:misc-text');
+    const expandText = t('intro:misc-text.expand');
+    const collapseText = t('intro:misc-text.collapse');
 
     const isBlockCompleted = completedCount === challengesWithCompleted.length;
 
-    const percentageComplated = Math.floor(
+    const percentageCompleted = Math.floor(
       (completedCount / challengesWithCompleted.length) * 100
     );
 
     const progressBarRender = (
-      <div className='progress-wrapper'>
-        <ProgressBar now={percentageComplated} />
-        <span>{`${percentageComplated}%`}</span>
+      <div aria-hidden='true' className='progress-wrapper'>
+        <div>
+          <ProgressBar now={percentageCompleted} />
+        </div>
+        <span>{`${percentageCompleted}%`}</span>
       </div>
     );
 
-    const Block = (
+    /**
+     * ChallengeListBlock displays challenges in a list.
+     * This layout is used in backend blocks, The Odin Project blocks, and blocks in legacy certification.
+     * Example: https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/#basic-javascript
+     */
+    const ChallengeListBlock = (
       <>
         {' '}
-        <ScrollableAnchor id={blockDashedName}>
+        <ScrollableAnchor id={block}>
           <div className={`block ${isExpanded ? 'open' : ''}`}>
             <div className='block-header'>
               <h3 className='big-block-title'>{blockTitle}</h3>
-              {!isAuditedCert(curriculumLocale, superBlock) && (
+              {blockType && <BlockLabel blockType={blockType} />}
+              {!isAudited && (
                 <div className='block-cta-wrapper'>
                   <Link
                     className='block-title-translation-cta'
@@ -181,7 +175,7 @@ export class Block extends Component<BlockProps> {
                 </div>
               )}
             </div>
-            {this.renderBlockIntros(blockIntroArr)}
+            <BlockIntros intros={blockIntroArr} />
             <button
               aria-expanded={isExpanded}
               className='map-title'
@@ -190,19 +184,29 @@ export class Block extends Component<BlockProps> {
               }}
             >
               <Caret />
-              <h4 className='course-title'>
-                {`${isExpanded ? collapseText : expandText}`}
-              </h4>
+              <div className='course-title'>
+                {`${isExpanded ? collapseText : expandText}`}{' '}
+                <span className='sr-only'>{blockTitle}</span>
+              </div>
               <div className='map-title-completed course-title'>
-                {this.renderCheckMark(isBlockCompleted)}
-                <span className='map-completed-count'>{`${completedCount}/${challengesWithCompleted.length}`}</span>
+                <CheckMark isCompleted={isBlockCompleted} />
+                <span
+                  aria-hidden='true'
+                  className='map-completed-count'
+                >{`${completedCount}/${challengesWithCompleted.length}`}</span>
+                <span className='sr-only'>
+                  ,{' '}
+                  {t('learn.challenges-completed', {
+                    completedCount,
+                    totalChallenges: challengesWithCompleted.length
+                  })}
+                </span>
               </div>
             </button>
             {isExpanded && (
               <Challenges
                 challengesWithCompleted={challengesWithCompleted}
                 isProjectBlock={isProjectBlock}
-                superBlock={superBlock}
               />
             )}
           </div>
@@ -210,13 +214,19 @@ export class Block extends Component<BlockProps> {
       </>
     );
 
-    const ProjectBlock = (
+    /**
+     * ProjectListBlock displays a list of certification projects.
+     * This layout is used in legacy certifications.
+     * Example: https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/#javascript-algorithms-and-data-structures-projects
+     */
+    const ProjectListBlock = (
       <>
-        <ScrollableAnchor id={blockDashedName}>
+        <ScrollableAnchor id={block}>
           <div className='block'>
             <div className='block-header'>
               <h3 className='big-block-title'>{blockTitle}</h3>
-              {!isAuditedCert(curriculumLocale, superBlock) && (
+              {blockType && <BlockLabel blockType={blockType} />}
+              {!isAudited && (
                 <div className='block-cta-wrapper'>
                   <Link
                     className='block-title-translation-cta'
@@ -227,103 +237,154 @@ export class Block extends Component<BlockProps> {
                 </div>
               )}
             </div>
-            {this.renderBlockIntros(blockIntroArr)}
+            <BlockIntros intros={blockIntroArr} />
             <Challenges
               challengesWithCompleted={challengesWithCompleted}
               isProjectBlock={isProjectBlock}
-              superBlock={superBlock}
             />
           </div>
         </ScrollableAnchor>
       </>
     );
 
-    const GridBlock = (
+    const courseCompletionStatus = () => {
+      if (completedCount === 0) {
+        return t('learn.not-started');
+      }
+      if (completedCount === challengesWithCompleted.length) {
+        return t('learn.completed');
+      }
+      return `${percentageCompleted}% ${t('learn.completed')}`;
+    };
+
+    /**
+     * ChallengeGridBlock displays challenges in a grid.
+     * This layout is used for step-based blocks.
+     * Example: https://www.freecodecamp.org/learn/2022/responsive-web-design/#learn-html-by-building-a-cat-photo-app
+     */
+    const ChallengeGridBlock = (
       <>
         {' '}
-        <ScrollableAnchor id={blockDashedName}>
+        <ScrollableAnchor id={block}>
           <div className={`block block-grid ${isExpanded ? 'open' : ''}`}>
-            <a
-              className='block-header'
-              onClick={() => {
-                this.handleBlockClick();
-              }}
-              href={`#${blockDashedName}`}
-            >
+            <h3 className='block-grid-title'>
+              {blockType && <BlockLabel blockType={blockType} />}
+              <button
+                aria-expanded={isExpanded ? 'true' : 'false'}
+                aria-controls={`${block}-panel`}
+                className='block-header'
+                onClick={() => {
+                  this.handleBlockClick();
+                }}
+              >
+                <span className='block-header-button-text map-title'>
+                  <CheckMark isCompleted={isBlockCompleted} />
+                  <span>
+                    {blockTitle}
+                    <span className='sr-only'>
+                      , {courseCompletionStatus()}
+                    </span>
+                  </span>
+                  <DropDown />
+                </span>
+                {!isExpanded &&
+                  !isBlockCompleted &&
+                  completedCount > 0 &&
+                  progressBarRender}
+              </button>
+            </h3>
+            {!isAudited && (
               <div className='tags-wrapper'>
-                {!isAuditedCert(curriculumLocale, superBlock) && (
-                  <Link
-                    className='cert-tag'
-                    to={t('links:help-translate-link-url')}
-                  >
-                    {t('misc.translation-pending')}
-                  </Link>
-                )}
+                <Link
+                  className='cert-tag'
+                  to={t('links:help-translate-link-url')}
+                >
+                  {t('misc.translation-pending')}
+                </Link>
               </div>
-              <div className='title-wrapper map-title'>
-                {this.renderCheckMark(isBlockCompleted)}
-                <h3 className='block-grid-title'>{blockTitle}</h3>
-                <DropDown />
-              </div>
-              {isExpanded && this.renderBlockIntros(blockIntroArr)}
-              {!isExpanded &&
-                !isBlockCompleted &&
-                completedCount > 0 &&
-                progressBarRender}
-            </a>
+            )}
             {isExpanded && (
-              <>
+              <div id={`${block}-panel`}>
+                <BlockIntros intros={blockIntroArr} />
                 <Challenges
                   challengesWithCompleted={challengesWithCompleted}
                   isProjectBlock={isProjectBlock}
-                  superBlock={superBlock}
+                  isGridMap={true}
+                  blockTitle={blockTitle}
                 />
-              </>
+              </div>
             )}
           </div>
         </ScrollableAnchor>
       </>
     );
 
-    const GridProjectBlock = (
-      <div className='block block-grid grid-project-block'>
-        <a
-          className='block-header'
-          onClick={() => {
-            this.handleBlockClick();
-          }}
-          href={challengesWithCompleted[0].fields.slug}
-        >
+    /**
+     * LinkBlock displays the block as a single link.
+     * This layout is used if the block has a single challenge.
+     * Example: https://www.freecodecamp.org/learn/2022/responsive-web-design/#build-a-survey-form-project
+     */
+    const LinkBlock = (
+      <ScrollableAnchor id={block}>
+        <div className='block block-grid grid-project-block'>
           <div className='tags-wrapper'>
-            <span className='cert-tag'>{t('misc.certification-project')}</span>
-            {!isAuditedCert(curriculumLocale, superBlock) && (
+            <span className='cert-tag' aria-hidden='true'>
+              {t('misc.certification-project')}
+            </span>
+            {!isAudited && (
               <Link
                 className='cert-tag'
                 to={t('links:help-translate-link-url')}
               >
-                {t('misc.translation-pending')}
+                {t('misc.translation-pending')}{' '}
+                <span className='sr-only'>
+                  {blockTitle} {t('misc.certification-project')}
+                </span>
               </Link>
             )}
           </div>
           <div className='title-wrapper map-title'>
-            {this.renderCheckMark(isBlockCompleted)}
-            <h3 className='block-grid-title'>{blockTitle}</h3>
+            {blockType && <BlockLabel blockType={blockType} />}
+            <h3 className='block-grid-title'>
+              <Link
+                className='block-header'
+                onClick={() => {
+                  this.handleBlockClick();
+                }}
+                to={challengesWithCompleted[0].fields.slug}
+              >
+                <CheckMark isCompleted={isBlockCompleted} />
+                {blockTitle}{' '}
+                <span className='sr-only'>
+                  {t('misc.certification-project')}
+                </span>
+              </Link>
+            </h3>
           </div>
-          {this.renderBlockIntros(blockIntroArr)}
-        </a>
-      </div>
+          <BlockIntros intros={blockIntroArr} />
+        </div>
+      </ScrollableAnchor>
     );
 
-    const blockrenderer = () => {
-      if (isProjectBlock)
-        return isNewResponsiveWebDesign ? GridProjectBlock : ProjectBlock;
-      return isNewResponsiveWebDesign ? GridBlock : Block;
+    const blockRenderer = () => {
+      const blockLayout = challenges[0].blockLayout;
+
+      // `blockLayout` property isn't available in all challenges
+      if (!blockLayout) {
+        if (isProjectBlock) return isGridBlock ? LinkBlock : ProjectListBlock;
+        return isGridBlock ? ChallengeGridBlock : ChallengeListBlock;
+      }
+
+      if (blockLayout === BlockLayouts.ChallengeGrid) return ChallengeGridBlock;
+      if (blockLayout === BlockLayouts.ChallengeList) return ChallengeListBlock;
+      if (blockLayout === BlockLayouts.Link) return LinkBlock;
+      if (blockLayout === BlockLayouts.ProjectList) return ProjectListBlock;
     };
 
     return (
       <>
-        {blockrenderer()}
-        {isNewResponsiveWebDesign && !isProjectBlock ? null : <Spacer />}
+        {blockRenderer()}
+        {isGridBlock && !isProjectBlock ? null : <Spacer size='medium' />}
       </>
     );
   }

@@ -17,7 +17,7 @@ You can create placeholder text like so:
 <input type="text" placeholder="this is placeholder text">
 ```
 
-**Note:** Remember that `input` elements are self-closing.
+**Note:** Remember that `input` is a void element.
 
 # --instructions--
 
@@ -68,7 +68,7 @@ assert($('input[type=text]').length > 0);
 
   <p>Things cats love:</p>
   <ul>
-    <li>cat nip</li>
+    <li>catnip</li>
     <li>laser pointers</li>
     <li>lasagna</li>
   </ul>
@@ -93,7 +93,7 @@ assert($('input[type=text]').length > 0);
   
   <p>Things cats love:</p>
   <ul>
-    <li>cat nip</li>
+    <li>catnip</li>
     <li>laser pointers</li>
     <li>lasagna</li>
   </ul>

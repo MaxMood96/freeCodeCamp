@@ -1,6 +1,7 @@
-import React, { Component, ReactNode } from 'react';
+import React, { ReactNode, useEffect } from 'react';
 import Helmet from 'react-helmet';
-import { TFunction, withTranslation } from 'react-i18next';
+import { useTranslation, withTranslation } from 'react-i18next';
+import { useMediaQuery } from 'react-responsive';
 import { connect } from 'react-redux';
 import { bindActionCreators, Dispatch } from 'redux';
 import { createSelector } from 'reselect';
@@ -8,36 +9,51 @@ import { createSelector } from 'reselect';
 import latoBoldURL from '../../../static/fonts/lato/Lato-Bold.woff';
 import latoLightURL from '../../../static/fonts/lato/Lato-Light.woff';
 import latoRegularURL from '../../../static/fonts/lato/Lato-Regular.woff';
-import robotoBoldURL from '../../../static/fonts/roboto-mono/RobotoMono-Bold.woff';
-import robotoItalicURL from '../../../static/fonts/roboto-mono/RobotoMono-Italic.woff';
-import robotoRegularURL from '../../../static/fonts/roboto-mono/RobotoMono-Regular.woff';
+import hackZeroSlashBoldURL from '../../../static/fonts/hack-zeroslash/Hack-ZeroSlash-Bold.woff';
+import hackZeroSlashItalicURL from '../../../static/fonts/hack-zeroslash/Hack-ZeroSlash-Italic.woff';
+import hackZeroSlashRegularURL from '../../../static/fonts/hack-zeroslash/Hack-ZeroSlash-Regular.woff';
+
 import { isBrowser } from '../../../utils';
 import {
   fetchUser,
-  isSignedInSelector,
   onlineStatusChange,
-  serverStatusChange,
+  serverStatusChange
+} from '../../redux/actions';
+import {
+  isSignedInSelector,
+  examInProgressSelector,
+  userSelector,
   isOnlineSelector,
   isServerOnlineSelector,
-  userFetchStateSelector,
-  userSelector,
-  executeGA
-} from '../../redux';
+  userFetchStateSelector
+} from '../../redux/selectors';
+
 import { UserFetchState, User } from '../../redux/prop-types';
+import BreadCrumb from '../../templates/Challenges/components/bread-crumb';
 import Flash from '../Flash';
 import { flashMessageSelector, removeFlashMessage } from '../Flash/redux';
-
+import SignoutModal from '../signout-modal';
+import StagingWarningModal from '../staging-warning-modal';
 import Footer from '../Footer';
 import Header from '../Header';
 import OfflineWarning from '../OfflineWarning';
+import { Loader, Spacer } from '../helpers';
+import {
+  MAX_MOBILE_WIDTH,
+  EX_SMALL_VIEWPORT_HEIGHT
+} from '../../../config/misc';
+import envData from '../../../config/env.json';
 
+import '@freecodecamp/ui/dist/base.css';
 // preload common fonts
 import './fonts.css';
 import './global.css';
 import './variables.css';
+import './rtl-layout.css';
 
 const mapStateToProps = createSelector(
   isSignedInSelector,
+  examInProgressSelector,
   flashMessageSelector,
   isOnlineSelector,
   isServerOnlineSelector,
@@ -45,6 +61,7 @@ const mapStateToProps = createSelector(
   userSelector,
   (
     isSignedIn,
+    examInProgress: boolean,
     flashMessage,
     isOnline: boolean,
     isServerOnline: boolean,
@@ -52,6 +69,7 @@ const mapStateToProps = createSelector(
     user: User
   ) => ({
     isSignedIn,
+    examInProgress,
     flashMessage,
     hasMessage: !!flashMessage.message,
     isOnline,
@@ -70,8 +88,7 @@ const mapDispatchToProps = (dispatch: Dispatch) =>
       fetchUser,
       removeFlashMessage,
       onlineStatusChange,
-      serverStatusChange,
-      executeGA
+      serverStatusChange
     },
     dispatch
   );
@@ -82,68 +99,84 @@ interface DefaultLayoutProps extends StateProps, DispatchProps {
   children: ReactNode;
   pathname: string;
   showFooter?: boolean;
-  t: TFunction;
-  useTheme?: boolean;
+  isChallenge?: boolean;
+  usesMultifileEditor?: boolean;
+  block?: string;
+  examInProgress: boolean;
+  superBlock?: string;
 }
 
-class DefaultLayout extends Component<DefaultLayoutProps> {
-  static displayName = 'DefaultLayout';
+const getSystemTheme = () =>
+  `${
+    window.matchMedia('(prefers-color-scheme: dark)').matches === true
+      ? 'dark-palette'
+      : 'light-palette'
+  }`;
 
-  componentDidMount() {
-    const { isSignedIn, fetchUser, pathname, executeGA } = this.props;
+function DefaultLayout({
+  children,
+  hasMessage,
+  examInProgress,
+  fetchState,
+  flashMessage,
+  isOnline,
+  isServerOnline,
+  isSignedIn,
+  removeFlashMessage,
+  showFooter = true,
+  isChallenge = false,
+  usesMultifileEditor,
+  block,
+  superBlock,
+  theme,
+  user,
+  fetchUser
+}: DefaultLayoutProps): JSX.Element {
+  const { t } = useTranslation();
+  const isMobileLayout = useMediaQuery({ maxWidth: MAX_MOBILE_WIDTH });
+  const isProject = /project$/.test(block as string);
+  const isRenderBreadcrumbOnMobile =
+    isMobileLayout && (isProject || !usesMultifileEditor);
+  const isRenderBreadcrumb = !isMobileLayout || isRenderBreadcrumbOnMobile;
+  const isExSmallViewportHeight = useMediaQuery({
+    maxHeight: EX_SMALL_VIEWPORT_HEIGHT
+  });
+  useEffect(() => {
+    // componentDidMount
     if (!isSignedIn) {
       fetchUser();
     }
-    executeGA({ type: 'page', data: pathname });
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
 
-    window.addEventListener('online', this.updateOnlineStatus);
-    window.addEventListener('offline', this.updateOnlineStatus);
-  }
+    return () => {
+      // componentWillUnmount.
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  componentDidUpdate(prevProps: DefaultLayoutProps) {
-    const { pathname, executeGA } = this.props;
-    const { pathname: prevPathname } = prevProps;
-    if (pathname !== prevPathname) {
-      executeGA({ type: 'page', data: pathname });
-    }
-  }
-
-  componentWillUnmount() {
-    window.removeEventListener('online', this.updateOnlineStatus);
-    window.removeEventListener('offline', this.updateOnlineStatus);
-  }
-
-  updateOnlineStatus = () => {
-    const { onlineStatusChange } = this.props;
+  const updateOnlineStatus = () => {
     const isOnline =
       isBrowser() && 'navigator' in window ? window.navigator.onLine : null;
     return typeof isOnline === 'boolean' ? onlineStatusChange(isOnline) : null;
   };
 
-  render() {
-    const {
-      children,
-      hasMessage,
-      fetchState,
-      flashMessage,
-      isOnline,
-      isServerOnline,
-      isSignedIn,
-      removeFlashMessage,
-      showFooter = true,
-      t,
-      theme = 'default',
-      user,
-      useTheme = true
-    } = this.props;
+  const useSystemTheme = fetchState.complete && isSignedIn === false;
 
+  if (fetchState.pending) {
+    return <Loader fullScreen={true} messageDelay={5000} />;
+  } else {
     return (
       <div className='page-wrapper'>
+        {envData.deploymentEnv === 'staging' &&
+          envData.environment === 'production' && <StagingWarningModal />}
         <Helmet
           bodyAttributes={{
-            class: useTheme
-              ? `${theme === 'default' ? 'light-palette' : 'dark-palette'}`
-              : 'light-palette'
+            class: useSystemTheme
+              ? getSystemTheme()
+              : `${String(theme) === 'night' ? 'dark' : 'light'}-palette`
           }}
           meta={[
             {
@@ -177,27 +210,31 @@ class DefaultLayout extends Component<DefaultLayoutProps> {
           <link
             as='font'
             crossOrigin='anonymous'
-            href={robotoRegularURL}
+            href={hackZeroSlashRegularURL}
             rel='preload'
             type='font/woff'
           />
           <link
             as='font'
             crossOrigin='anonymous'
-            href={robotoBoldURL}
+            href={hackZeroSlashBoldURL}
             rel='preload'
             type='font/woff'
           />
           <link
             as='font'
             crossOrigin='anonymous'
-            href={robotoItalicURL}
+            href={hackZeroSlashItalicURL}
             rel='preload'
             type='font/woff'
           />
         </Helmet>
         <div className={`default-layout`}>
-          <Header fetchState={fetchState} user={user} />
+          <Header
+            fetchState={fetchState}
+            user={user}
+            skipButtonText={t('learn.skip-to-content')}
+          />
           <OfflineWarning
             isOnline={isOnline}
             isServerOnline={isServerOnline}
@@ -209,13 +246,28 @@ class DefaultLayout extends Component<DefaultLayoutProps> {
               removeFlashMessage={removeFlashMessage}
             />
           ) : null}
-          {children}
+          <SignoutModal />
+          {isChallenge &&
+            !examInProgress &&
+            (isRenderBreadcrumb ? (
+              <div className='breadcrumbs-demo'>
+                <BreadCrumb
+                  block={block as string}
+                  superBlock={superBlock as string}
+                />
+              </div>
+            ) : (
+              <Spacer size={isExSmallViewportHeight ? 'xxSmall' : 'small'} />
+            ))}
+          {fetchState.complete && children}
         </div>
         {showFooter && <Footer />}
       </div>
     );
   }
 }
+
+DefaultLayout.displayName = 'DefaultLayout';
 
 export default connect(
   mapStateToProps,

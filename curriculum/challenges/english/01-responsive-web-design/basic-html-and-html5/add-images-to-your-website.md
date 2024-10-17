@@ -16,7 +16,7 @@ An example of this would be:
 <img src="https://www.freecatphotoapp.com/your-image.jpg">
 ```
 
-Note that `img` elements are self-closing.
+Note that `img` is a void element.
 
 All `img` elements **must** have an `alt` attribute. The text inside an `alt` attribute is used for screen readers to improve accessibility and is displayed if the image fails to load.
 
@@ -27,7 +27,7 @@ Ideally the `alt` attribute should not contain special characters unless needed.
 Let's add an `alt` attribute to our `img` example above:
 
 ```html
-<img src="https://www.freecatphotoapp.com/your-image.jpg" alt="A business cat wearing a necktie.">
+<img src="https://www.freecatphotoapp.com/your-image.jpg" alt="freeCodeCamp logo">
 ```
 
 # --instructions--
@@ -60,7 +60,7 @@ Your image element's `alt` attribute should not be empty.
 assert(
   $('img').attr('alt') &&
     $('img').attr('alt').length &&
-    /<img\S*alt=(['"])(?!\1|>)\S+\1\S*\/?>/.test(
+    /<(?:img|IMG)\S*alt=(['"])(?!\1|>)\S+\1\S*\/?>/.test(
       __helpers.removeWhiteSpace(code)
     )
 );
