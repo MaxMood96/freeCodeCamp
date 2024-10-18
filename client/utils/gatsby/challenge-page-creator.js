@@ -1,11 +1,10 @@
 const path = require('path');
-const { dasherize } = require('../../../utils/slugs');
-const { sortChallengeFiles } = require('../../../utils/sort-challengefiles');
-const { challengeTypes, viewTypes } = require('../challenge-types');
+const { sortChallengeFiles } = require('../sort-challengefiles');
+const { viewTypes } = require('../../../shared/config/challenge-types');
 
 const backend = path.resolve(
   __dirname,
-  '../../src/templates/Challenges/projects/backend/Show.tsx'
+  '../../src/templates/Challenges/projects/backend/show.tsx'
 );
 const classic = path.resolve(
   __dirname,
@@ -13,7 +12,7 @@ const classic = path.resolve(
 );
 const frontend = path.resolve(
   __dirname,
-  '../../src/templates/Challenges/projects/frontend/Show.tsx'
+  '../../src/templates/Challenges/projects/frontend/show.tsx'
 );
 const codeAlly = path.resolve(
   __dirname,
@@ -27,9 +26,44 @@ const superBlockIntro = path.resolve(
   __dirname,
   '../../src/templates/Introduction/super-block-intro.tsx'
 );
+const quiz = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/quiz/show.tsx'
+);
+
 const video = path.resolve(
   __dirname,
-  '../../src/templates/Challenges/video/Show.tsx'
+  '../../src/templates/Challenges/video/show.tsx'
+);
+
+const odin = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/odin/show.tsx'
+);
+
+const exam = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/exam/show.tsx'
+);
+
+const msTrophy = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/ms-trophy/show.tsx'
+);
+
+const dialogue = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/dialogue/show.tsx'
+);
+
+const fillInTheBlank = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/fill-in-the-blank/show.tsx'
+);
+
+const generic = path.resolve(
+  __dirname,
+  '../../src/templates/Challenges/generic/show.tsx'
 );
 
 const views = {
@@ -37,37 +71,59 @@ const views = {
   classic,
   modern: classic,
   frontend,
+  quiz,
   video,
-  codeAlly
-  // quiz: Quiz
+  codeAlly,
+  odin,
+  exam,
+  msTrophy,
+  dialogue,
+  fillInTheBlank,
+  generic
 };
 
-function getNextChallengePath(_node, index, nodeArray) {
-  const next = nodeArray[index + 1];
-  return next ? next.node.challenge.fields.slug : '/learn';
+function getIsFirstStepInBlock(id, edges) {
+  const current = edges[id];
+  const previous = edges[id - 1];
+
+  if (!previous) return true;
+  return previous.node.challenge.block !== current.node.challenge.block;
 }
 
-function getPrevChallengePath(_node, index, nodeArray) {
-  const prev = nodeArray[index - 1];
-  return prev ? prev.node.challenge.fields.slug : '/learn';
+function getNextChallengePath(id, edges) {
+  const next = edges[id + 1];
+  return next ? next.node.challenge.fields.slug : null;
+}
+
+function getPrevChallengePath(id, edges) {
+  const prev = edges[id - 1];
+  return prev ? prev.node.challenge.fields.slug : null;
 }
 
 function getTemplateComponent(challengeType) {
   return views[viewTypes[challengeType]];
 }
 
+function getNextBlock(id, edges) {
+  const next = edges[id + 1];
+  return next ? next.node.challenge.block : null;
+}
+
 exports.createChallengePages = function (createPage) {
-  return function ({ node: { challenge } }, index, allChallengeEdges) {
+  return function ({ node }, index, allChallengeEdges) {
     const {
+      dashedName,
+      disableLoopProtectTests,
+      disableLoopProtectPreview,
       certification,
       superBlock,
       block,
-      fields: { slug },
+      fields: { slug, blockHashSlug },
       required = [],
       template,
       challengeType,
       id
-    } = challenge;
+    } = node.challenge;
     // TODO: challengeType === 7 and isPrivate are the same, right? If so, we
     // should remove one of them.
 
@@ -76,33 +132,36 @@ exports.createChallengePages = function (createPage) {
       component: getTemplateComponent(challengeType),
       context: {
         challengeMeta: {
+          blockHashSlug,
+          dashedName,
           certification,
+          disableLoopProtectTests,
+          disableLoopProtectPreview,
           superBlock,
           block,
+          isFirstStep: getIsFirstStepInBlock(index, allChallengeEdges),
           template,
           required,
-          nextChallengePath: getNextChallengePath(
-            challenge,
-            index,
-            allChallengeEdges
-          ),
-          prevChallengePath: getPrevChallengePath(
-            challenge,
-            index,
-            allChallengeEdges
-          ),
+          nextBlock: getNextBlock(index, allChallengeEdges),
+          nextChallengePath: getNextChallengePath(index, allChallengeEdges),
+          prevChallengePath: getPrevChallengePath(index, allChallengeEdges),
           id
         },
-        projectPreview: getProjectPreviewConfig(challenge, allChallengeEdges),
-        slug
+        projectPreview: getProjectPreviewConfig(
+          node.challenge,
+          allChallengeEdges
+        ),
+        id: node.id
       }
     });
   };
 };
 
+// TODO: figure out a cleaner way to get the last challenge in a block. Create
+// it during the curriculum build process and attach it to the first challenge?
+// That would remove the need to analyse allChallengeEdges.
 function getProjectPreviewConfig(challenge, allChallengeEdges) {
-  const { block, challengeOrder, challengeType, usesMultifileEditor } =
-    challenge;
+  const { block } = challenge;
 
   const challengesInBlock = allChallengeEdges
     .filter(({ node: { challenge } }) => challenge.block === block)
@@ -120,10 +179,6 @@ function getProjectPreviewConfig(challenge, allChallengeEdges) {
   }));
 
   return {
-    showProjectPreview:
-      challengeOrder === 0 &&
-      usesMultifileEditor &&
-      challengeType !== challengeTypes.multiFileCertProject,
     challengeData: {
       challengeType: lastChallenge.challengeType,
       challengeFiles: projectPreviewChallengeFiles
@@ -135,15 +190,16 @@ exports.createBlockIntroPages = function (createPage) {
   return function (edge) {
     const {
       fields: { slug },
-      frontmatter: { block }
+      frontmatter: { block },
+      id
     } = edge.node;
 
     createPage({
       path: slug,
       component: intro,
       context: {
-        block: dasherize(block),
-        slug
+        block,
+        id
       }
     });
   };
@@ -153,7 +209,7 @@ exports.createSuperBlockIntroPages = function (createPage) {
   return function (edge) {
     const {
       fields: { slug },
-      frontmatter: { superBlock, certification }
+      frontmatter: { superBlock, certification, title }
     } = edge.node;
 
     if (!certification) {
@@ -171,7 +227,7 @@ exports.createSuperBlockIntroPages = function (createPage) {
       context: {
         certification,
         superBlock,
-        slug
+        title
       }
     });
   };

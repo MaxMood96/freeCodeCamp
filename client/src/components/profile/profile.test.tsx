@@ -1,10 +1,13 @@
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { Provider } from 'react-redux';
+import { createStore } from 'redux';
 import { Themes } from '../settings/theme';
-
 import Profile from './profile';
 
 jest.mock('../../analytics');
+//workaround to avoid some strange gatsby error:
+window.___loader = { enqueue: () => {}, hovering: () => {} };
 
 const userProps = {
   user: {
@@ -25,10 +28,6 @@ const userProps = {
       showDonation: false
     },
     calendar: {},
-    streak: {
-      current: 1,
-      longest: 1
-    },
     completedChallenges: [],
     portfolio: [],
     progressTimestamps: [],
@@ -37,18 +36,16 @@ const userProps = {
     isBanned: false,
     isCheater: true,
     isHonest: true,
-    isGithub: true,
-    isLinkedIn: true,
-    isTwitter: true,
-    isWebsite: true,
     joinDate: 'string',
     linkedin: 'string',
     location: 'string',
     name: 'string',
     picture: 'string',
     points: 1,
+    savedChallenges: [],
     sendQuincyEmail: true,
     sound: true,
+    keyboardShortcuts: false,
     theme: Themes.Default,
     twitter: 'string',
     username: 'string',
@@ -71,7 +68,9 @@ const userProps = {
     isSciCompPyCertV7: true,
     isDataAnalysisPyCertV7: true,
     isMachineLearningPyCertV7: true,
-    isRelationalDatabaseCertV8: true
+    isRelationalDatabaseCertV8: true,
+    isCollegeAlgebraPyCertV8: true,
+    isFoundationalCSharpVertV8: true
   },
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   navigate: () => {}
@@ -81,17 +80,24 @@ const notMyProfileProps = {
   isSessionUser: false,
   ...userProps
 };
-
+function reducer() {
+  return {
+    app: { appUsername: 'vasili', user: { vasili: userProps.user } }
+  };
+}
+function renderWithRedux(ui: JSX.Element) {
+  return render(<Provider store={createStore(reducer)}>{ui}</Provider>);
+}
 describe('<Profile/>', () => {
   it('renders the report button on another persons profile', () => {
-    render(<Profile {...notMyProfileProps} />);
+    renderWithRedux(<Profile {...notMyProfileProps} />);
 
     const reportButton: HTMLElement = screen.getByText('buttons.flag-user');
     expect(reportButton).toHaveAttribute('href', '/user/string/report-user');
   });
 
   it('renders correctly', () => {
-    const { container } = render(<Profile {...notMyProfileProps} />);
+    const { container } = renderWithRedux(<Profile {...notMyProfileProps} />);
 
     expect(container).toMatchSnapshot();
   });
