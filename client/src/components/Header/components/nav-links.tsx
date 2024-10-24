@@ -1,225 +1,305 @@
-/* eslint-disable jsx-a11y/no-onchange */
-/* eslint-disable @typescript-eslint/ban-ts-comment */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-/* eslint-disable @typescript-eslint/ban-types */
-/* eslint-disable react/prop-types */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
-// @ts-nocheck
 import {
   faCheckSquare,
-  faHeart,
   faSquare,
   faExternalLinkAlt
 } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import React, { Component, Fragment } from 'react';
-import { TFunction, withTranslation } from 'react-i18next';
+import React, { Fragment } from 'react';
+import { useTranslation, withTranslation } from 'react-i18next';
 import { connect } from 'react-redux';
-import envData from '../../../../../config/env.json';
-import {
-  availableLangs,
-  langDisplayNames
-} from '../../../../../config/i18n/all-langs';
-import { hardGoTo as navigate } from '../../../redux';
-import { updateUserFlag } from '../../../redux/settings';
-import createLanguageRedirect from '../../create-language-redirect';
+import { radioLocation } from '../../../../config/env.json';
+import { openSignoutModal } from '../../../redux/actions';
+import { updateMyTheme } from '../../../redux/settings/actions';
 import { Link } from '../../helpers';
-import { Themes } from '../../settings/theme';
+import { type ThemeProps, Themes } from '../../settings/theme';
+import { User } from '../../../redux/prop-types';
+import SupporterBadge from '../../../assets/icons/supporter-badge';
 
-const { clientLocale, radioLocation, apiLocation } = envData;
-
-const locales = availableLangs.client;
-
-export interface NavLinksProps {
-  displayMenu?: boolean;
-  fetchState?: { pending: boolean };
-  i18n: Object;
-  t: TFunction;
-  toggleDisplayMenu?: React.MouseEventHandler<HTMLButtonElement>;
-  toggleNightMode: (x: any) => any;
-  user?: Record<string, unknown>;
-  navigate?: (location: string) => void;
+export interface NavLinksProps extends Pick<ThemeProps, 'toggleNightMode'> {
+  displayMenu: boolean;
+  showMenu: () => void;
+  hideMenu: () => void;
+  user?: User;
+  menuButtonRef: React.RefObject<HTMLButtonElement>;
+  openSignoutModal: () => void;
 }
 
 const mapDispatchToProps = {
-  navigate,
-  toggleNightMode: (theme: Themes) => updateUserFlag({ theme })
+  toggleNightMode: (theme: Themes) => updateMyTheme({ theme }),
+  openSignoutModal
 };
 
-export class NavLinks extends Component<NavLinksProps, {}> {
-  static displayName: string;
+interface DonateButtonProps {
+  isUserDonating: boolean | undefined;
+  handleMenuKeyDown: (event: React.KeyboardEvent<HTMLAnchorElement>) => void;
+}
 
-  constructor(props: NavLinksProps) {
-    super(props);
-    this.handleLanguageChange = this.handleLanguageChange.bind(this);
-  }
+const DonateButton = ({
+  isUserDonating,
+  handleMenuKeyDown
+}: DonateButtonProps) => {
+  const { t } = useTranslation();
+  return (
+    <li key={isUserDonating ? 'supporter' : 'donate'}>
+      <Link
+        className={`nav-link nav-link-flex nav-link-header ${
+          isUserDonating && 'nav-link-supporter'
+        }`}
+        onKeyDown={handleMenuKeyDown}
+        sameTab={false}
+        to={isUserDonating ? '/supporters' : '/donate'}
+        data-test-label={
+          isUserDonating ? 'dropdown-support-button' : 'dropdown-donate-button'
+        }
+      >
+        {isUserDonating ? (
+          <>
+            {t('buttons.supporters')}
+            <SupporterBadge />
+          </>
+        ) : (
+          <>{t('buttons.donate')}</>
+        )}
+      </Link>
+    </li>
+  );
+};
 
-  toggleTheme(currentTheme = Themes.Default, toggleNightMode: any) {
-    toggleNightMode(
-      currentTheme === Themes.Night ? Themes.Default : Themes.Night
-    );
-  }
+const toggleTheme = (
+  currentTheme = Themes.Default,
+  toggleNightMode: typeof updateMyTheme
+) => {
+  toggleNightMode(
+    currentTheme === Themes.Night ? Themes.Default : Themes.Night
+  );
+};
 
-  handleLanguageChange = (
-    event: React.ChangeEvent<HTMLSelectElement>
-  ): void => {
-    const { toggleDisplayMenu, navigate } = this.props;
-    toggleDisplayMenu();
+function NavLinks({
+  menuButtonRef,
+  openSignoutModal,
+  hideMenu,
+  displayMenu,
+  toggleNightMode,
+  user
+}: NavLinksProps) {
+  const { t } = useTranslation();
+  const {
+    isDonating: isUserDonating,
+    username: currentUserName,
+    theme: currentUserTheme
+  } = user || {};
 
-    const path = createLanguageRedirect({
-      clientLocale,
-      lang: event.target.value
-    });
-
-    return navigate(path);
+  // the accessibility tree just needs a little more time to pick up the change.
+  // This function allows us to set aria-expanded to false and then delay just a bit before setting focus on the button
+  const closeAndFocus = () => {
+    menuButtonRef.current?.classList.add('force-show');
+    hideMenu();
+    setTimeout(() => {
+      menuButtonRef.current?.focus();
+      menuButtonRef.current?.classList.remove('force-show');
+    }, 100);
   };
 
-  render() {
-    const {
-      displayMenu,
-      fetchState,
-      t,
-      toggleNightMode,
-      user: { isDonating = false, username, theme }
-    }: NavLinksProps = this.props;
+  const handleMenuKeyDown = (
+    event: React.KeyboardEvent<HTMLButtonElement | HTMLAnchorElement>
+  ) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeAndFocus();
+    }
+  };
 
-    const { pending } = fetchState;
+  const handleSignOutKeys = (
+    event: React.KeyboardEvent<HTMLButtonElement | HTMLAnchorElement>
+  ) => {
+    const DoKeyPress = new Map<string, { select: () => void }>([
+      [
+        'Escape',
+        {
+          select: () => {
+            event.preventDefault();
+            closeAndFocus();
+          }
+        }
+      ],
+      [
+        'Tab',
+        {
+          select: () => {
+            const camperPressedTheShiftKey = event.shiftKey;
+            if (!camperPressedTheShiftKey) {
+              hideMenu();
+            }
+          }
+        }
+      ]
+    ]);
+    DoKeyPress.get(event.key)?.select();
+  };
 
-    return pending ? (
-      <div className='nav-skeleton' />
-    ) : (
-      <div className={'nav-list' + (displayMenu ? ' display-menu' : '')}>
-        {isDonating ? (
-          <div className='nav-link nav-link-flex nav-link-header' key='donate'>
-            <span>{t('donate.thanks')}</span>
-            <FontAwesomeIcon icon={faHeart} />
-          </div>
-        ) : (
-          <Link className='nav-link' key='donate' sameTab={false} to='/donate'>
-            {t('buttons.donate')}
-          </Link>
-        )}
-        {!username && (
-          <a
-            className='nav-link nav-link-sign-in'
-            href={`${apiLocation}/signin`}
-            key='signin'
-          >
-            {t('buttons.sign-in')}
-          </a>
-        )}
-        <Link className='nav-link' key='learn' to='/learn'>
+  const handleSignOutClick = (): void => {
+    hideMenu();
+    openSignoutModal();
+  };
+
+  return (
+    <ul
+      aria-labelledby='toggle-button-nav'
+      data-playwright-test-label='header-menu'
+      className={`nav-list${displayMenu ? ' display-menu' : ''}`}
+    >
+      <DonateButton
+        isUserDonating={isUserDonating}
+        handleMenuKeyDown={handleMenuKeyDown}
+      />
+      <li key='learn'>
+        <Link className='nav-link' onKeyDown={handleMenuKeyDown} to='/learn'>
           {t('buttons.curriculum')}
         </Link>
-        {username && (
-          <Fragment key='profile-settings'>
+      </li>
+      {currentUserName && (
+        <>
+          <li key='profile'>
             <Link
               className='nav-link'
-              key='profile'
+              onKeyDown={handleMenuKeyDown}
               sameTab={false}
-              to={`/${username}`}
+              to={`/${currentUserName}`}
             >
               {t('buttons.profile')}
             </Link>
+          </li>
+          <li key='settings'>
             <Link
               className='nav-link'
-              key='settings'
+              onKeyDown={handleMenuKeyDown}
               sameTab={false}
               to={`/settings`}
             >
               {t('buttons.settings')}
             </Link>
-          </Fragment>
-        )}
-        <hr className='nav-line' />
+          </li>
+        </>
+      )}
+      <li key='forum' className='nav-line'>
         <Link
           className='nav-link nav-link-flex'
           external={true}
-          key='forum'
+          onKeyDown={handleMenuKeyDown}
           sameTab={false}
           to={t('links:nav.forum')}
         >
           <span>{t('buttons.forum')}</span>
+          <span className='sr-only'>, {t('aria.opens-new-window')}</span>
+
           <FontAwesomeIcon icon={faExternalLinkAlt} />
         </Link>
+      </li>
+      <li key='news'>
         <Link
           className='nav-link nav-link-flex'
           external={true}
-          key='news'
+          onKeyDown={handleMenuKeyDown}
           sameTab={false}
           to={t('links:nav.news')}
         >
           <span>{t('buttons.news')}</span>
+          <span className='sr-only'>, {t('aria.opens-new-window')}</span>
           <FontAwesomeIcon icon={faExternalLinkAlt} />
         </Link>
+      </li>
+      <li key='radio'>
         <Link
           className='nav-link nav-link-flex'
           external={true}
-          key='radio'
+          onKeyDown={handleMenuKeyDown}
           sameTab={false}
           to={radioLocation}
         >
           <span>{t('buttons.radio')}</span>
+          <span className='sr-only'>, {t('aria.opens-new-window')}</span>
           <FontAwesomeIcon icon={faExternalLinkAlt} />
         </Link>
-        <hr className='nav-line' />
-        <button
-          className={
-            'nav-link nav-link-flex' + (!username ? ' nav-link-header' : '')
-          }
-          disabled={!username}
-          key='theme'
-          onClick={() => this.toggleTheme(String(theme), toggleNightMode)}
+      </li>
+      <li key='contribute'>
+        <Link
+          className='nav-link nav-link-flex'
+          external={true}
+          onKeyDown={handleMenuKeyDown}
+          sameTab={false}
+          to={t('links:nav.contribute')}
         >
-          {username ? (
+          <span>{t('buttons.contribute')}</span>
+          <span className='sr-only'>, {t('aria.opens-new-window')}</span>
+          <FontAwesomeIcon icon={faExternalLinkAlt} />
+        </Link>
+      </li>
+      <li key='podcast'>
+        <Link
+          className='nav-link nav-link-flex'
+          external={true}
+          onKeyDown={handleMenuKeyDown}
+          sameTab={false}
+          to={t('links:nav.podcast')}
+        >
+          <span>{t('buttons.podcast')}</span>
+          <span className='sr-only'>, {t('aria.opens-new-window')}</span>
+          <FontAwesomeIcon icon={faExternalLinkAlt} />
+        </Link>
+      </li>
+      <li className='nav-line' key='theme'>
+        <button
+          {...(!currentUserName && { 'aria-describedby': 'theme-sign-in' })}
+          aria-disabled={!currentUserName}
+          aria-pressed={currentUserTheme === Themes.Night ? 'true' : 'false'}
+          className={
+            'nav-link nav-link-flex' +
+            (!currentUserName ? ' nav-link-header' : '')
+          }
+          onClick={() => {
+            if (currentUserName) {
+              toggleTheme(currentUserTheme, toggleNightMode);
+            }
+          }}
+          onKeyDown={currentUserName ? handleMenuKeyDown : handleSignOutKeys}
+        >
+          {currentUserName ? (
             <>
               <span>{t('settings.labels.night-mode')}</span>
-              {theme === Themes.Night ? (
+              {currentUserTheme === Themes.Night ? (
                 <FontAwesomeIcon icon={faCheckSquare} />
               ) : (
                 <FontAwesomeIcon icon={faSquare} />
               )}
             </>
           ) : (
-            <span className='nav-link-dull'>{t('misc.change-theme')}</span>
+            <Fragment key='night-mode'>
+              <span className='sr-only'>{t('settings.labels.night-mode')}</span>
+              <span
+                aria-hidden='true'
+                className='nav-link-dull'
+                id='theme-sign-in'
+              >
+                {t('misc.change-theme')}
+              </span>
+            </Fragment>
           )}
         </button>
-        <div className='nav-link nav-link-header' key='lang-header'>
-          {t('footer.language')}
-        </div>
-
-        <div className='nav-link dropdown-nav-link' key='language-dropdown'>
-          <select
-            className='nav-link-lang-dropdown'
-            onChange={this.handleLanguageChange}
-            value={clientLocale}
+      </li>
+      {currentUserName && (
+        <li className='nav-line' key='sign-out'>
+          <button
+            className='nav-link nav-link-signout'
+            data-value='sign-out-button'
+            onClick={handleSignOutClick}
+            onKeyDown={handleSignOutKeys}
           >
-            {locales.map(lang => (
-              <option key={'lang-' + lang} value={lang}>
-                {langDisplayNames[lang]}
-              </option>
-            ))}
-          </select>
-        </div>
-        {username && (
-          <Fragment key='signout-frag'>
-            <hr className='nav-line-2' />
-            <a
-              className='nav-link'
-              href={`${apiLocation}/signout`}
-              key='sign-out'
-            >
-              {t('buttons.sign-out')}
-            </a>
-          </Fragment>
-        )}
-      </div>
-    );
-  }
+            {t('buttons.sign-out')}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
 }
 
 NavLinks.displayName = 'NavLinks';

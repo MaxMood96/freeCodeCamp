@@ -19,7 +19,7 @@ You can create a text input like this:
 <input type="text">
 ```
 
-Note that `input` elements are self-closing.
+Note that `input` is a void element.
 
 # --instructions--
 
@@ -46,7 +46,7 @@ assert($('input[type=text]').length > 0);
 
   <p>Things cats love:</p>
   <ul>
-    <li>cat nip</li>
+    <li>catnip</li>
     <li>laser pointers</li>
     <li>lasagna</li>
   </ul>
@@ -72,7 +72,7 @@ assert($('input[type=text]').length > 0);
 
   <p>Things cats love:</p>
   <ul>
-    <li>cat nip</li>
+    <li>catnip</li>
     <li>laser pointers</li>
     <li>lasagna</li>
   </ul>
