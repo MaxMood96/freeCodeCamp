@@ -44,7 +44,7 @@
     "@babel/register": "7.23.7",
     "@compodoc/live-server": "^1.2.3",
     "chai": "4.4.1",
-    "glob": "8.1.0",
+    "glob": "9.0.0",
     "invariant": "2.2.4",
     "joi": "17.12.2",
     "joi-objectid": "3.0.1",
@@ -54,7 +54,7 @@
     "mocha": "10.3.0",
     "mock-require": "3.0.3",
     "ora": "5.4.1",
-    "puppeteer": "22.12.1",
+    "puppeteer": "22.13.1",
     "readdirp": "3.6.0",
     "string-similarity": "4.0.4"
   }
