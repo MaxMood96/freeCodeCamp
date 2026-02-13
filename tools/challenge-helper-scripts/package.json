@@ -42,7 +42,7 @@
     "eslint": "^9.39.1",
     "glob": "^8.1.0",
     "gray-matter": "4.0.3",
-    "inquirer": "8.2.6",
+    "inquirer": "10.0.0",
     "prettier": "3.2.5",
     "typescript": "5.9.3",
     "vitest": "^3.2.4"
